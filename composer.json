@@ -29,7 +29,7 @@
         "source": "https://github.com/wintercms/winter"
     },
     "require": {
-        "php": ">=7.2.9",
+        "php": "^7.2.9|^8.0",
         "winter/storm": "dev-develop as 1.1.999",
         "winter/wn-system-module": "dev-develop as 1.1.999",
         "winter/wn-backend-module": "dev-develop as 1.1.999",
@@ -55,12 +55,12 @@
     },
     "scripts": {
         "post-create-project-cmd": [
-            "php artisan key:generate",
-            "php artisan package:discover"
+            "@php artisan key:generate",
+            "@php artisan package:discover"
         ],
         "post-update-cmd": [
-            "php artisan winter:version",
-            "php artisan package:discover"
+            "@php artisan winter:version",
+            "@php artisan package:discover"
         ],
         "test": [
             "phpunit --stop-on-failure"
@@ -82,6 +82,12 @@
             "recurse": true,
             "replace": false,
             "merge-dev": false
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "wikimedia/composer-merge-plugin": true
         }
     }
 }

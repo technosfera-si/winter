@@ -1,6 +1,7 @@
 <?php namespace Backend\Widgets;
 
 use Db;
+use Str;
 use Html;
 use Lang;
 use Backend;
@@ -422,7 +423,7 @@ class Lists extends WidgetBase
          */
         foreach ($this->getVisibleColumns() as $column) {
             // If useRelationCount is enabled, eager load the count of the relation into $relation_count
-            if ($column->relation && @$column->config['useRelationCount']) {
+            if ($column->relation && ($column->config['useRelationCount'] ?? false)) {
                 $query->withCount($column->relation);
             }
 
@@ -538,8 +539,8 @@ class Lists extends WidgetBase
             }
 
             // Set the sorting column to $relation_count if useRelationCount enabled
-            if (isset($column->relation) && @$column->config['useRelationCount']) {
-                $sortColumn = $column->relation . '_count';
+            if (isset($column->relation) && ($column->config['useRelationCount'] ?? false)) {
+                $sortColumn = Str::snake($column->relation) . '_count';
             }
 
             $query->orderBy($sortColumn, $this->sortDirection);
@@ -841,7 +842,7 @@ class Lists extends WidgetBase
         /*
          * Use a supplied column order
          */
-        if ($columnOrder = $this->getSession('order', null)) {
+        if ($columnOrder = $this->getUserPreference('order', null)) {
             $orderedDefinitions = [];
             foreach ($columnOrder as $column) {
                 if (isset($this->allColumns[$column])) {
@@ -1034,8 +1035,9 @@ class Lists extends WidgetBase
             if ($record->hasRelation($columnName) && array_key_exists($columnName, $record->attributes)) {
                 $value = $record->attributes[$columnName];
             // Load the value from the relationship counter if useRelationCount is specified
-            } elseif ($column->relation && @$column->config['useRelationCount']) {
-                $value = $record->{"{$column->relation}_count"};
+            } elseif ($column->relation && ($column->config['useRelationCount'] ?? false)) {
+                $relation = Str::snake($column->relation);
+                $value = $record->{"{$relation}_count"};
             } else {
                 $value = $record->{$columnName};
             }
@@ -1201,12 +1203,14 @@ class Lists extends WidgetBase
      */
     protected function evalImageTypeValue($record, $column, $value)
     {
+        $image = null;
         $config = $column->config;
 
         // Get config options with defaults
         $width = isset($config['width']) ? $config['width'] : 50;
         $height = isset($config['height']) ? $config['height'] : 50;
         $options = isset($config['options']) ? $config['options'] : [];
+        $fallback = isset($config['default']) ? $config['default'] : null;
 
         // Handle attachMany relationships
         if (isset($record->attachMany[$column->columnName])) {
@@ -1220,12 +1224,20 @@ class Lists extends WidgetBase
         } elseif (str_contains($value, '://')) {
             $image = $value;
 
+        // Handle embedded data URLs
+        } elseif (starts_with($value, 'data:image')) {
+            $image = $value;
+
         // Assume all other values to be from the media library
-        } else {
+        } elseif (!empty($value)) {
             $image = MediaLibrary::url($value);
         }
 
-        if (!is_null($image)) {
+        if (!$image && $fallback) {
+            $image = $fallback;
+        }
+
+        if ($image) {
             $imageUrl = ImageResizer::filterGetUrl($image, $width, $height, $options);
             return "<img src='$imageUrl' width='$width' height='$height' />";
         }
@@ -1675,7 +1687,7 @@ class Lists extends WidgetBase
         }
 
         $this->recordsPerPage = post('records_per_page', $this->recordsPerPage);
-        $this->putSession('order', post('column_order'));
+        $this->putUserPreference('order', post('column_order'));
         $this->putUserPreference('per_page', $this->recordsPerPage);
         return $this->onRefresh();
     }
@@ -1685,6 +1697,7 @@ class Lists extends WidgetBase
      */
     public function onResetSetup()
     {
+        $this->clearUserPreference('order');
         $this->clearUserPreference('visible');
         $this->clearUserPreference('per_page');
         return $this->onRefresh();
